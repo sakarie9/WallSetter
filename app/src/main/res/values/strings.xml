@@ -13,6 +13,8 @@
     <string name="status_wallpaper_set_failed">❌ 壁纸设置失败：%1$s</string>
     <string name="status_permission_granted">已获得图片读取权限，可正常选择与设置壁纸。</string>
     <string name="status_permission_denied">未授予图片读取权限，可能无法正常选择或处理图片。</string>
+    <string name="status_all_files_access_granted">已授予“所有文件访问”权限，可读取受限目录中的壁纸文件。</string>
+    <string name="status_all_files_access_denied">未授予“所有文件访问”权限，某些目录图片可能无法通过路径读取。</string>
 
     <string name="action_pick_image">选择图片</string>
     <string name="action_set_wallpaper">设置壁纸</string>

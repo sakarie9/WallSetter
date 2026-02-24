@@ -1,11 +1,14 @@
 package top.sakari.wallsetter
 
 import android.Manifest
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
@@ -97,6 +100,20 @@ class MainActivity : ComponentActivity() {
             renderUi()
         }
 
+    private val manageAllFilesAccessLauncher =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+            statusMessage = if (hasManageExternalStorageAccess()) {
+                getString(R.string.status_all_files_access_granted)
+            } else {
+                getString(R.string.status_all_files_access_denied)
+            }
+
+            if (!hasManageExternalStorageAccess() && !hasRequiredStoragePermission()) {
+                requestStoragePermissionLauncher.launch(requiredStoragePermission())
+            }
+            renderUi()
+        }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -144,16 +161,41 @@ class MainActivity : ComponentActivity() {
             Manifest.permission.READ_EXTERNAL_STORAGE
         }
 
+    private fun hasManageExternalStorageAccess(): Boolean {
+        return Build.VERSION.SDK_INT < Build.VERSION_CODES.R || Environment.isExternalStorageManager()
+    }
+
     private fun hasRequiredStoragePermission(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        if (hasManageExternalStorageAccess()) return true
         val permission = requiredStoragePermission()
         return ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
     }
 
     private fun ensureStoragePermissionOnLaunch() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !hasManageExternalStorageAccess()) {
+            requestManageExternalStorageAccess()
+            return
+        }
         if (hasRequiredStoragePermission()) return
         requestStoragePermissionLauncher.launch(requiredStoragePermission())
+    }
+
+    private fun requestManageExternalStorageAccess() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return
+
+        val appIntent = Intent(
+            Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+            Uri.parse("package:$packageName")
+        )
+
+        try {
+            manageAllFilesAccessLauncher.launch(appIntent)
+        } catch (_: ActivityNotFoundException) {
+            val fallbackIntent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
+            manageAllFilesAccessLauncher.launch(fallbackIntent)
+        }
     }
 
     private fun setSelectedImageAsWallpaper() {
