@@ -20,11 +20,22 @@ object WallpaperSetter {
     }
 
     fun setFromUri(context: Context, uri: Uri, target: String) {
-        val bitmap = decodeBitmap(context, uri)
+        val wallpaperManager = WallpaperManager.getInstance(context)
+        val requiredWidth = maxOf(
+            context.resources.displayMetrics.widthPixels,
+            wallpaperManager.desiredMinimumWidth,
+            1
+        )
+        val requiredHeight = maxOf(
+            context.resources.displayMetrics.heightPixels,
+            wallpaperManager.desiredMinimumHeight,
+            1
+        )
+
+        val bitmap = decodeBitmap(context, uri, requiredWidth, requiredHeight)
             ?: throw IllegalArgumentException("Failed to decode image from uri: $uri")
 
         try {
-            val wallpaperManager = WallpaperManager.getInstance(context)
             val cropHint = buildCenteredCropHint(context, bitmap.width, bitmap.height)
             wallpaperManager.setBitmap(bitmap, cropHint, true, toWallpaperFlag(target))
         } finally {
@@ -32,7 +43,12 @@ object WallpaperSetter {
         }
     }
 
-    private fun decodeBitmap(context: Context, uri: Uri): Bitmap? {
+    private fun decodeBitmap(
+        context: Context,
+        uri: Uri,
+        requiredWidth: Int,
+        requiredHeight: Int
+    ): Bitmap? {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         context.contentResolver.openInputStream(uri)?.use { stream ->
             BitmapFactory.decodeStream(stream, null, bounds)
@@ -43,12 +59,20 @@ object WallpaperSetter {
         if (width <= 0 || height <= 0) return null
 
         var sampleSize = 1
-        while (width / sampleSize > MAX_DIMENSION || height / sampleSize > MAX_DIMENSION) {
-            sampleSize *= 2
+        while (true) {
+            val nextSampleSize = sampleSize * 2
+            val nextWidth = width / nextSampleSize
+            val nextHeight = height / nextSampleSize
+            val stillLargeEnough = nextWidth >= requiredWidth && nextHeight >= requiredHeight
+            val stillAboveHardCap = nextWidth > MAX_DIMENSION || nextHeight > MAX_DIMENSION
+
+            if (!stillLargeEnough || !stillAboveHardCap) break
+            sampleSize = nextSampleSize
         }
 
         val decodeOptions = BitmapFactory.Options().apply {
             inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.ARGB_8888
         }
 
         return context.contentResolver.openInputStream(uri)?.use { stream ->
